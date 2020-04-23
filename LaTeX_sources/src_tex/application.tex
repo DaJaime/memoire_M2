@@ -1,0 +1,107 @@
+\chapter{Application}
+\section{Mise en évidence de biais}
+Nous avons vu dans le chapitre 1 de ce mémoire que l'utilisation de d'algorithmes de type boites noires dans l'aide à la prise de décision pouvait entraîner des problèmes d'ordre éthique. Dans cette partie, nous allons mettre en application nos recherches présentées dans l'état de l'art afin de démontrer que rendre un modèle boite noire interprétable permettrai de mettre en évidence des biais discriminatoire. Notre objectif est de créer un modèle prédictif à partir d'un jeu de données comportant possiblement des biais, puis d'utiliser l'outil SHAP afin d'essayer de mettre en évidence les éventuels biais présents dans notre jeu de données.
+\subsection{Le jeu de données}
+Afin de savoir si utiliser une méthode de compréhension de boites noires aurai permis de mettre en évidence les biais présents dans l'intelligence artificielle dite sexiste de l'entreprise Amazon (évoquée dans l'introduction de ce mémoire), nous appliquerons ces méthodes sur un exemple similaire. Pour rappel, cette IA rejetait les CVs de femmes car elle avait été entraînée en se basant sur les personnes employées par l'entreprise dans le passé et que ces personnes étaient majoritairement des hommes, l'IA a donc conclue qu'il était préférable d'embaucher un homme plutôt qu'une femme.\par
+Pour cette expérimentation, nous allons utiliser un jeu de données qui nous donne des informations sur des étudiants ainsi que leurs notes à différents examens. Ce jeu de données disponible ici \cite{examScore} ressemble à cela (Figure \ref{studentsPerformanceDataSet}) :
+\newpage
+\begin{figure}[h]
+    \includegraphics[scale=0.65]{src_img/studentsPerformanceDataSet.png}
+    \caption{Jeu de donnée des performances des étudiants}
+    \label{studentsPerformanceDataSet}
+\end{figure}
+
+À noter, que ce jeu de données est fictif et généré aléatoirement. Notre but est de créer un modèle qui prédira la moyenne d’un étudiant en fonction de son sexe, de son ethnie, du niveau d’éducation de ses parents, de son régime alimentaire et de sa préparation aux tests. Pour ce faire, le jeu de données a été modifié en retirant les trois colonnes de scores afin d'en créer qu'une seule correspondant à la moyenne des trois. Nous obtenons donc le résultat présenté dans la figure \ref{studentsPerformanceDataSetModif} : 
+\begin{figure}[h]
+    \includegraphics[scale=1]{src_img/StudentsPerformanceDataSetModif.png}
+    \caption{Jeu de donnée final}
+    \label{studentsPerformanceDataSetModif}
+\end{figure}
+Une fois notre modèle entraîné à prédire la moyenne potentielle d'un étudiant à partir de ces caractéristiques, on pourrai imaginer l'utiliser pour le recrutement universitaire. Mais (en dépit du fait que ces caractéristiques ne sont pas très pertinentes) notre modèle de recrutement est-il réellement fiable ? Pourrait-il être discriminant pour certaines ethnies ou pour un certain sexe ? Nous allons essayer de le découvrir en comprenant comment les caractéristiques d'entrée influent sur notre prédiction.
+
+\subsection{Création du modèle prédictif}
+La première étape sera donc de créer un modèle prédictif et de l'entraîner sur notre jeu de données. Pour ce faire, nous avons utilisé l'algorithme des forêts d'arbres décisionnels (random forest). Cet algorithme reposant sur l'apprentissage par arbre de décision consiste à effectuer un apprentissage en parallèle sur de multiples arbres de décision construits aléatoirement et entraînés sur des sous-ensembles de données différentes selon le principe du bagging. Le baggin consiste à réduire la variance d'un arbre de décision afin de palier à son instabilité. Les prédictions de tous ces arbres sont ensuite moyennées afin de nous donner un résultat.\par
+Aussi, notre jeu de données a dû être encodé afin de créer une colonne par variables dans le but de n'avoir que des entrées numériques, par exemple la colonne "gender" devient deux colonnes "female" et "male" prennant 0 ou 1 comme valeur. Pour notre jeu de données, nous passons donc de cinq colonnes d'entrée à dix-sept colonnes qui sont : \medbreak
+['x0\_female' 'x0\_male' 'x1\_group A' 'x1\_group B' 'x1\_group C' 'x1\_group D' 'x1\_group E' "x2\_associate's degree" "x2\_bachelor's degree" 'x2\_high school' "x2\_master's degree" 'x2\_some college' 'x2\_some high school' 'x3\_free/reduced' 'x3\_standard' 'x4\_completed' 'x4\_none']\medbreak
+Où "x0" correspond à la transformation de la première colonne, "x1" à la transformation de la deuxième colonne et ainsi de suite.
+
+\subsection{Explication de notre prédiction}
+Notre modèle étant prêt, nous allons pouvoir nous demander s'il n'a pas été biaisé involontairement par notre jeu de données. Pour ce faire, nous allons utiliser un outil d'interprétation présenté dans notre état de l'art : SHAP, à l'aide de la librairie python SHAP. La première chose à faire est de déterminer la valeur de Shapley de notre modèle, la librairie SHAP met à notre disposition une fonction prenant en paramètre notre modèle ainsi que nos données d'entraînement. Comme décrit dans l'état de l'art partie 2.3.2, cette fonction va sonder notre modèle de multiple fois en faisant varier les données d'entrées afin de déterminer l'impact de ces données sur notre prédiction.\par
+Une fois notre valeur de Shapley obtenue, nous pouvons afficher différent graphique afin de mieux comprendre les raisons de nos prédictions. La figure \ref{shapPlotBar} est un graphique généré par SHAP fournissant une explication globale de notre modèle de type importance des variables (features importance). L’importance des variables est calculée en moyennant la valeur absolue des valeurs de Shapley de chaque variable pour chaque exemple de notre jeu de données.
+
+On voit donc sur notre graphique que la non-préparation aux tests et qu'un régime alimentaire équilibré sont les deux entrées aillent le plus d'impact sur notre prédiction, mais nous ne sommes pour le moment pas en mesure de savoir si cet impact est positif ou négatif.
+\newpage
+\begin{figure}[h]
+    \includegraphics[scale=0.6]{src_img/shapPlotBar.png}
+    \caption{Importance des variables d'entrées dans notre prédiction}
+    \label{shapPlotBar}
+\end{figure}
+Afin d'entrer plus dans le détail, SHAP nous offre d'autres graphiques comme par exemple la figure \ref{shapPlotDetail}. Sur ce graphique, chaque point représente une valeur de Shapley pour la variable pour chacune des instances. Les points rouges représentent un impact positif sur notre prédiction et les points bleu représentent un impact négatif. Nos données d'entrée étant constituées de valeurs binaires, ce graphique se lis de cette manière : si la valeur est positive et que la couleur est bleu alors la variable a un impact négatif sur notre valeur de sortie et inversement pour la couleur rouge. Par exemple la non-préparation au test et un régime alimentaire équilibré ont une influence négative sur notre moyenne. On peut aussi voir qu'être une femme a un impact positif alors qu'être un homme a un impact négatif. L’ethnie de type D sera aussi favorisée. Ces résultats laissent penser qu'utiliser ce modèle pour le recrutement universitaire aura un effet discriminatoire pour les hommes qui seront défavorisés, ce qui ressemble à l’IA d’Amazon évoquée précédemment.
+\newpage
+\begin{figure}[h]
+    \includegraphics[scale=0.6]{src_img/shapPlotDetail.png}
+    \caption{Détail de l'explication de l'importance des variables}
+    \label{shapPlotDetail}
+\end{figure}
+Il nous est aussi possible de fournir une interprétation local c'est-à-dire de voir pourquoi notre boite noire a donnée un tel résultat pour une instance précise. La figure \ref{shapPlotLocal} nous montre un exemple d'interprétation local. On vois que pour cette instance notre modèle a estimé que l'étudiant aurai 60.62 de moyenne. Comme pour l'exemple précédent, les variables aillant un impact positif sont affichées en rouge et celles ayant un impact négatif sont affichées en bleu. On voit donc que pour cette instance l'entraînement à l'épreuve, le régime alimentaire et le sexe influence négativement notre moyenne alors que le niveau d’éducation des parents a une influence positive.
+\begin{figure}[h]
+    \includegraphics[scale=0.5]{src_img/shapPlotLocal.png}
+    \caption{Explication de la prédiction pour une instance précise}
+    \label{shapPlotLocal}
+\end{figure}
+
+\subsection{Bilan}
+ Après l'inspection de notre modèle, nous avons pu voir qu'il jugeait les femmes plus performantes que les hommes et que son utilisation dans le recrutement universitaire aurai eut un impact discriminant sur les étudiants postulant. L'utilisation d'une méthode d'interprétabilité sur notre boite noire nous a donc permis de mettre en évidence un biais de discrimination présent dans notre jeu de donnée. Bien sûr, notre exemple étant trivial on aurai pu directement se rendre compte que les caractéristiques d'entrées n'étaient pas réellement pertinentes pour prédire la moyenne d'un étudiant.\par
+ Nous pouvons donc dire que qu'il est important de vérifier la pertinence des entrées de notre modèle, aussi utiliser un algorithme permettant que comprendre la logique interne de notre boite noire est important afin d'éviter tous problèmes.
+
+\section{Améliorer la fiabilité}
+L'intelligence artificielle pose aussi des problèmes de fiabilités, notamment dans le domaine médical. Afin de savoir si rendre un modèle interprétable permettrai d'améliorer sa fiabilité et de vérifier s'il se base sur les bons éléments pour donner ses prédictions, nous allons appliquer l'algorithme LIME vu dans l'état de l'art à un modèle issu du monde médical.
+
+\subsection{Le jeu de données}
+Pour cette expérimentation, nous allons utiliser un jeu de données contenant des images de radiographies. Le but sera de créer un modèle permettant de détecter si le patient de la radiographie est atteint de pneumonie. Ce jeu de données disponible ici \cite{kagglePneumonia} est visible sur la Figure \ref{pneumoniaImg} :
+\begin{figure}[h]
+    \includegraphics[scale=0.7]{src_img/pneumoniaImg.png}
+    \caption{Exemple d'images présentes dans le jeu de donnée de pneumonie}
+    \label{pneumoniaImg}
+\end{figure}
+Le jeu de données contient donc des radiographies de cages thoraciques saines ou malade. Dans la partie suivante, nous allons donc créer un modèle prenant en entrée une radiographie et nous donnant une prédiction sur l'état de santé du patient.
+
+\subsection{Création du modèle prédictif}
+Afin de prédire si la radiographie présente une pneumonie ou pas, nous allons créer un réseau de réseau de neurones à convolution. Un réseau de neurones à convolution (Convolutional Neural Networks) va ajouter des filtres et des couches à notre image d'entrée afin de pouvoir détecter plus de patterns que le ferai un réseau de neurones classique.
+
+\subsection{Explication de notre prédiction}
+Notre modèle prêt, nous allons utiliser l'outil LIME présenté dans notre état de l'art afin de vérifier la fiabilité de notre modèle. L'explication sera locale et effectuée sur une seule image. Pour rappel,  l’idée de LIME est de sonder la boite noire autant de fois que nécessaire avec différentes versions de notre image d'entrée qui aura subi de multiples perturbations.\par
+La première étape consiste donc à créer des perturbations pour notre image. Pour ce faire, nous allons utiliser la librairie Skimage afin de générer 75 perturbations de notre image. La figure \ref{limePerturbSchema} montre le squelette de perturbation de notre image, chaque zone sera cachée ou affichée comme le montre la figure \ref{limePerturbExemple}.\par
+\begin{figure}[h]
+    \includegraphics[scale=0.6]{src_img/limePerturbSchema.png}
+    \caption{Zones de perturbation}
+    \label{limePerturbSchema}
+\end{figure}
+
+\begin{figure}[h]
+    \includegraphics[scale=0.7]{src_img/limePerturbations.png}
+    \caption{Exemple de perturbations générées}
+    \label{limePerturbExemple}
+\end{figure}
+
+La seconde étape consiste à utiliser notre modèle afin d'effectuer une prédiction pour l'ensemble des perturbations générées. La prédiction ne doit pas nous donner le résultat, mais sa probabilité. Pour notre exemple la prédiction ne renverra donc pas "pneumonie", mais un tableau de deux valeurs avec la probabilité d'avoir que les poumons soient sains ou non "[0.23, 0.77]".\par
+Une fois nos prédictions faites, nous allons évaluer la distance entre chaque prédiction et notre image de base. La distance correspond aux nombre de zones du squelette de perturbation de la figure \ref{limePerturbSchema} cachées. L'image de base aillant toutes les zones de perturbation visible.\par
+Pour finir, nous créons un modèle linéaire que nous entraînons avec les informations obtenues dans les étapes précédentes afin d'obtenir un coefficient pour chacune des zones de perturbations représentant l'importance de la zone pour notre prédiction. Il ne nous reste donc plus qu'à trier ces coefficient afin d'afficher les plus élevés. Pour notre exemple nous obtenons le résultat présenté en figure \ref{limeExplaine}.
+
+\begin{figure}[h]
+    \includegraphics[scale=0.7]{src_img/limeExplaine.png}
+    \caption{Zones de perturbations avec les coefficients les plus élevés}
+    \label{limeExplaine}
+\end{figure}
+
+Pour finir, nous pouvons superposer l'image obtenue avec l'image de base afin de voir la zone du poumon touchée par la pneumonie selon notre réseau de neurones comme le montre la figure \ref{limeFinalExplain}.
+
+\newpage
+\begin{figure}[h]
+    \includegraphics[scale=0.7]{src_img/limeFinalExplain.png}
+    \caption{Explication de la prédiction de pneumonie par LIME}
+    \label{limeFinalExplain}
+\end{figure}
+\subsection{Bilan}
+L'utilisation de l'outil d'interprétabilité nous a donc bien permit de déterminer quelles zones de notre image sont déterminantes pour notre prédiction. Dans notre exemple l'explication apporte un plus à la simple prédiction "pneumonie", car elle montre la zone la plus touchée par la maladie.\par
+Accompagner chaque prédiction avec son explication serait un grand plus et améliorer grandement la fiabilité de nos modèles. Aussi, cela permettrai d'augmenter la confiance de la population à l'égard de ces technologies. Bien-sûr le but n'est pas de faire vérifier chaque prédiction par un médecin, cela serai contre-productif et l'IA permettant de faire gagner du temps aux médecins serait inutile. L'idée serait d'utiliser ces prédictions pendant les phases de développement et de test de notre IA afin de vérifier qu'elle évolue dans le bon sens et qu'elle détecte bien les pneumonies et pas autre chose.
